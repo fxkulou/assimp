@@ -40,6 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "json/src/json.hpp"
+#include "openddlparser/Value.h"
 
 namespace glTF {
 
@@ -88,8 +89,8 @@ namespace glTF {
 
     }
 
-    inline void Write( json& obj, Accessor& a, AssetWriter& w)
-    {
+    inline 
+    void Write( json& obj, Accessor& a, AssetWriter& w) {
         //{ \"happy\": true, \"pi\": 3.141 }"_json;
         json obj1 = {
                 { "bufferView",  a.bufferView->id },
@@ -97,7 +98,7 @@ namespace glTF {
                 { "byteStride", a.byteStride },
                 { "componentType", int( a.componentType )},
                 { "count", a.count },
-                { "type", StringRef( AttribType::ToString( a.type ) ) },
+                { "type", AttribType::ToString( a.type ) },
                 { "max", a.max },
                 { "min", a.min },
             };
@@ -117,14 +118,22 @@ namespace glTF {
     inline void Write( json& obj, Animation& a, AssetWriter& w)
     {
         /****************** Channels *******************/
-        json channels;
-        channels.SetArray();
-        channels.Reserve(unsigned(a.Channels.size()), w.mAl);
+        json channels = json::array();
+
+/*        channels.SetArray();
+        channels.Reserve(unsigned(a.Channels.size()), w.mAl);*/
 
         for (size_t i = 0; i < unsigned(a.Channels.size()); ++i) {
             Animation::AnimChannel& c = a.Channels[i];
-            Value valChannel;
-            valChannel.SetObject();
+            json valChannel = json::object();
+            valChannel["sampler"] = c.sampler;
+            json valTarget = json::object();
+            valTarget["id"] = c.target.id->id;
+            valTarget["path"] = c.target.path;
+            valChannel["target"] = valTarget;
+            channels.push_back(valChannel);
+
+/*            valChannel.SetObject();
             {
                 valChannel.AddMember("sampler", c.sampler, w.mAl);
 
@@ -136,9 +145,11 @@ namespace glTF {
                 }
                 valChannel.AddMember("target", valTarget, w.mAl);
             }
-            channels.PushBack(valChannel, w.mAl);
+            channels.PushBack(valChannel, w.mAl);*/
         }
-        obj.AddMember("channels", channels, w.mAl);
+        obj["channels"] = channels;
+
+//        obj.AddMember("channels", channels, w.mAl);
 
         /****************** Parameters *******************/
         Value valParameters;
@@ -177,8 +188,8 @@ namespace glTF {
         obj.AddMember("samplers", valSamplers, w.mAl);
     }
 
-    inline void Write(Value& obj, Buffer& b, AssetWriter& w)
-    {
+    inline 
+    void Write(json& obj, Buffer& b, AssetWriter& w) {
         const char* type;
         switch (b.type) {
             case Buffer::Type_text:
@@ -186,27 +197,39 @@ namespace glTF {
             default:
                 type = "arraybuffer";
         }
-
-        obj.AddMember("byteLength", static_cast<uint64_t>(b.byteLength), w.mAl);
+        json obj1 = {
+            { "byteLength",  static_cast<uint64_t>(b.byteLength) },
+            { "type", type },
+            { "uri", ODDLParser::Value(b.GetURI() ) }
+        };
+        obj = obj1;
+        /*obj.AddMember("byteLength", static_cast<uint64_t>(b.byteLength), w.mAl);
         obj.AddMember("type", StringRef(type), w.mAl);
-        obj.AddMember("uri", Value(b.GetURI(), w.mAl).Move(), w.mAl);
+        obj.AddMember("uri", ODDLParser::Value(b.GetURI(), w.mAl).Move(), w.mAl);*/
     }
 
-    inline void Write(Value& obj, BufferView& bv, AssetWriter& w)
-    {
-        obj.AddMember("buffer", Value(bv.buffer->id, w.mAl).Move(), w.mAl);
+    inline 
+    void Write(json& obj, BufferView& bv, AssetWriter& w) {
+        json obj1 = {
+            { "buffer",  bv.buffer->id },
+            { "byteOffset", static_cast<uint64_t>(bv.byteOffset) },
+            { "byteLength", static_cast<uint64_t>(bv.byteLength) },
+            { "target", int(bv.target) }
+        };
+
+/*        obj.AddMember("buffer", Value(bv.buffer->id, w.mAl).Move(), w.mAl);
         obj.AddMember("byteOffset", static_cast<uint64_t>(bv.byteOffset), w.mAl);
         obj.AddMember("byteLength", static_cast<uint64_t>(bv.byteLength), w.mAl);
-        obj.AddMember("target", int(bv.target), w.mAl);
+        obj.AddMember("target", int(bv.target), w.mAl);*/
     }
 
-    inline void Write(Value& obj, Camera& c, AssetWriter& w)
-    {
+    inline 
+    void Write(json& obj, Camera& c, AssetWriter& w) {
 
     }
 
-    inline void Write(Value& obj, Image& img, AssetWriter& w)
-    {
+    inline 
+    void Write(json& obj, Image& img, AssetWriter& w) {
         std::string uri;
         if (w.mAsset.extensionsUsed.KHR_binary_glTF && img.bufferView) {
             Value exts, ext;
@@ -231,12 +254,16 @@ namespace glTF {
             uri = img.uri;
         }
 
-        obj.AddMember("uri", Value(uri, w.mAl).Move(), w.mAl);
+        json obj1  = {
+            { "uri", uri }
+        };
+        obj = obj1;
+        //obj.AddMember("uri", Value(uri, w.mAl).Move(), w.mAl);
     }
 
     namespace {
-        inline void WriteColorOrTex(Value& obj, TexProperty& prop, const char* propName, MemoryPoolAllocator<>& al)
-        {
+        inline 
+        void WriteColorOrTex(json& obj, TexProperty& prop, const char* propName/*, MemoryPoolAllocator<>& al*/) {
             if (prop.texture)
                 obj.AddMember(StringRef(propName), Value(prop.texture->id, al).Move(), al);
             else {
@@ -246,8 +273,8 @@ namespace glTF {
         }
     }
 
-    inline void Write(Value& obj, Material& m, AssetWriter& w)
-    {
+    inline 
+    void Write(Value& obj, Material& m, AssetWriter& w) {
         Value v;
         v.SetObject();
         {
